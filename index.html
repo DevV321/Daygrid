@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DAYGRID — 15-min day tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0A11;
+  --bg2:#0E0E17;
+  --glass:rgba(255,255,255,0.035);
+  --glass2:rgba(255,255,255,0.06);
+  --line:rgba(255,255,255,0.08);
+  --line2:rgba(255,255,255,0.14);
+  --txt:#EDEDF2;
+  --dim:#8A8A9B;
+  --faint:#55556A;
+  --orange:#FF6B2C;
+  --blue:#3B9EFF;
+  --purple:#8B5CF6;
+  --green:#2EE59D;
+  --radius:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(139,92,246,0.10), transparent 60%),
+    radial-gradient(800px 500px at -10% 100%, rgba(255,107,44,0.07), transparent 55%),
+    var(--bg);
+  color:var(--txt);
+  font-family:'Inter',-apple-system,sans-serif;
+  font-size:14px;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:rgba(255,107,44,0.35)}
+
+.app{max-width:1180px;margin:0 auto;padding:28px 24px 60px}
+
+/* ---------- header ---------- */
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{
+  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;letter-spacing:0.06em;
+  background:linear-gradient(92deg,var(--orange),#FF9A5C);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 14px rgba(255,107,44,0.35));
+}
+.brand span{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--faint);letter-spacing:0.08em}
+.datebar{display:flex;align-items:center;gap:8px}
+.datebar .dstr{
+  font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;color:var(--txt);
+  padding:9px 14px;background:var(--glass);border:1px solid var(--line);border-radius:10px;min-width:190px;text-align:center;
+}
+.btn{
+  appearance:none;border:1px solid var(--line);background:var(--glass);color:var(--dim);
+  font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;
+  padding:9px 13px;border-radius:10px;cursor:pointer;transition:all .15s ease;letter-spacing:0.03em;
+}
+.btn:hover{border-color:var(--line2);color:var(--txt);background:var(--glass2)}
+.btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.btn.today{color:var(--blue);border-color:rgba(59,158,255,0.35)}
+.btn.today:hover{box-shadow:0 0 18px rgba(59,158,255,0.25)}
+.sync{display:flex;align-items:center;gap:9px}
+.sync .sdot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex-shrink:0}
+.sync.on .sdot{background:var(--green);box-shadow:0 0 10px rgba(46,229,157,0.7)}
+.sync.err .sdot{background:#FF5C7A;box-shadow:0 0 10px rgba(255,92,122,0.7)}
+.sync.busy .sdot{background:var(--blue);animation:blink 1s ease-in-out infinite}
+@keyframes blink{50%{opacity:0.3}}
+.sync .sstat{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--faint);letter-spacing:0.04em;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sync.on .sstat{color:var(--dim)}
+
+/* ---------- layout ---------- */
+.grid-wrap{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+@media(max-width:920px){.grid-wrap{grid-template-columns:1fr}}
+
+.card{
+  background:var(--glass);border:1px solid var(--line);border-radius:var(--radius);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+
+/* ---------- palette ---------- */
+.palette{display:flex;flex-wrap:wrap;gap:8px;padding:14px 16px;margin-bottom:16px;align-items:center}
+.chip{
+  display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:99px;cursor:pointer;
+  border:1px solid var(--line);background:transparent;color:var(--dim);
+  font-family:'Inter',sans-serif;font-size:12.5px;font-weight:500;transition:all .15s ease;
+}
+.chip .dot{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.chip:hover{color:var(--txt);border-color:var(--line2)}
+.chip.active{
+  color:var(--txt);border-color:var(--c);background:color-mix(in srgb,var(--c) 14%, transparent);
+  box-shadow:0 0 16px color-mix(in srgb,var(--c) 35%, transparent);
+}
+.chip.eraser .dot{background:transparent;border:1.5px dashed var(--faint)}
+.chip .x{
+  margin-left:2px;font-size:13px;line-height:1;color:var(--faint);padding:0 1px;
+  border:none;background:none;cursor:pointer;font-family:inherit;
+}
+.chip .x:hover{color:#FF5C7A}
+.chip.addcat-btn{border-style:dashed;color:var(--faint)}
+.chip.addcat-btn:hover{color:var(--blue);border-color:rgba(59,158,255,0.4)}
+.addcat-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.addcat-form input[type=text]{
+  background:rgba(0,0,0,0.28);border:1px solid var(--line);border-radius:8px;
+  color:var(--txt);font-family:'Inter',sans-serif;font-size:12.5px;padding:7px 11px;width:150px;
+}
+.addcat-form input[type=text]:focus{outline:none;border-color:rgba(59,158,255,0.5)}
+.addcat-form input[type=color]{
+  appearance:none;-webkit-appearance:none;width:32px;height:32px;border:1px solid var(--line);
+  border-radius:8px;background:transparent;cursor:pointer;padding:2px;
+}
+.addcat-form input[type=color]::-webkit-color-swatch-wrapper{padding:2px}
+.addcat-form input[type=color]::-webkit-color-swatch{border:none;border-radius:5px}
+.hint{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--faint);letter-spacing:0.04em}
+@media(max-width:700px){.hint{display:none}}
+
+/* ---------- day grid ---------- */
+.day{padding:18px 18px 20px;user-select:none}
+.hour-row{display:grid;grid-template-columns:52px 1fr;gap:10px;align-items:center;position:relative}
+.hour-label{
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--faint);text-align:right;
+  padding-right:2px;letter-spacing:0.03em;
+}
+.hour-row.now-hour .hour-label{color:var(--orange);text-shadow:0 0 10px rgba(255,107,44,0.5)}
+.quarters{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;padding:2.5px 0}
+.blk{
+  height:26px;border-radius:7px;cursor:pointer;position:relative;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.055);
+  transition:background .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.blk:hover{border-color:var(--line2);background:rgba(255,255,255,0.07)}
+.blk.filled{
+  background:color-mix(in srgb,var(--c) 26%, transparent);
+  border-color:color-mix(in srgb,var(--c) 55%, transparent);
+}
+.blk.filled:hover{box-shadow:0 0 14px color-mix(in srgb,var(--c) 40%, transparent)}
+.blk.selected{
+  outline:1.5px solid var(--txt);outline-offset:1px;
+}
+.blk .note-dot{
+  position:absolute;top:4px;right:5px;width:5px;height:5px;border-radius:50%;
+  background:var(--txt);opacity:0.85;box-shadow:0 0 6px rgba(255,255,255,0.8);
+}
+.blk.now{
+  border-color:var(--orange);
+  box-shadow:0 0 0 1px rgba(255,107,44,0.55), 0 0 18px rgba(255,107,44,0.35);
+  animation:pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse{
+  0%,100%{box-shadow:0 0 0 1px rgba(255,107,44,0.55), 0 0 14px rgba(255,107,44,0.28)}
+  50%{box-shadow:0 0 0 1px rgba(255,107,44,0.85), 0 0 26px rgba(255,107,44,0.5)}
+}
+@media (prefers-reduced-motion:reduce){.blk.now{animation:none}}
+
+/* ---------- side panel ---------- */
+.side{position:sticky;top:20px;display:flex;flex-direction:column;gap:16px}
+.detail{padding:18px}
+.dhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.dhead h2{margin-bottom:0}
+.dclose{display:none;padding:6px 11px}
+.detail h2{
+  font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.14em;
+  text-transform:uppercase;color:var(--dim);margin-bottom:12px;
+}
+.detail .time{
+  font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:600;color:var(--txt);margin-bottom:4px;
+}
+.detail .cat-tag{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);margin-bottom:14px;
+}
+.detail .cat-tag .dot{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.detail textarea{
+  width:100%;min-height:110px;resize:vertical;
+  background:rgba(0,0,0,0.28);border:1px solid var(--line);border-radius:10px;
+  color:var(--txt);font-family:'Inter',sans-serif;font-size:13.5px;line-height:1.55;padding:12px;
+}
+.detail textarea:focus{outline:none;border-color:rgba(59,158,255,0.5);box-shadow:0 0 16px rgba(59,158,255,0.15)}
+.detail textarea::placeholder{color:var(--faint)}
+.detail .empty{color:var(--faint);font-size:13px;line-height:1.6;padding:8px 0 4px}
+.savemark{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--green);margin-top:8px;opacity:0;transition:opacity .3s}
+.savemark.show{opacity:1}
+
+/* ---------- stats ---------- */
+.stats{padding:18px}
+.stats h2{
+  font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.14em;
+  text-transform:uppercase;color:var(--dim);margin-bottom:14px;
+}
+.stat-row{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.stat-row .dot{width:8px;height:8px;border-radius:50%;background:var(--c);flex-shrink:0;box-shadow:0 0 8px color-mix(in srgb,var(--c) 60%, transparent)}
+.stat-row .nm{font-size:12.5px;color:var(--dim);flex-shrink:0;width:82px}
+.stat-row .bar{flex:1;height:6px;border-radius:99px;background:rgba(255,255,255,0.05);overflow:hidden}
+.stat-row .bar i{display:block;height:100%;border-radius:99px;background:var(--c);width:0%;transition:width .35s ease;box-shadow:0 0 8px color-mix(in srgb,var(--c) 50%, transparent)}
+.stat-row .hrs{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--txt);width:44px;text-align:right;flex-shrink:0}
+.tracked{
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:baseline;
+}
+.tracked span{font-size:12px;color:var(--faint)}
+.tracked b{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--green);text-shadow:0 0 14px rgba(46,229,157,0.4)}
+
+.io{display:flex;gap:8px;padding:0 2px;flex-wrap:wrap}
+.io .btn{flex:1;text-align:center;white-space:nowrap}
+.btn.saveday{color:var(--green);border-color:rgba(46,229,157,0.35)}
+.btn.saveday:hover{box-shadow:0 0 18px rgba(46,229,157,0.25)}
+.io-status{
+  padding:6px 4px 0;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--faint);
+  letter-spacing:0.04em;min-height:16px;
+}
+.io-status b{color:var(--green);font-weight:500}
+.io-status a{color:var(--blue);cursor:pointer;text-decoration:none}
+.io-status a:hover{text-decoration:underline}
+footer{margin-top:26px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--faint);letter-spacing:0.05em}
+
+/* ---------- mobile ---------- */
+.blk{touch-action:pan-y} /* vertical scroll allowed; drag-paint via long-press */
+@media(max-width:920px){
+  .side{position:static}
+  /* detail panel becomes a bottom sheet */
+  .detail{
+    position:fixed;left:10px;right:10px;bottom:10px;z-index:50;
+    transform:translateY(calc(100% + 20px));transition:transform .28s cubic-bezier(.3,.9,.3,1);
+    background:rgba(16,16,26,0.92);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+    box-shadow:0 -8px 40px rgba(0,0,0,0.55), 0 0 0 1px var(--line);
+    max-height:52vh;overflow-y:auto;
+    padding-bottom:calc(18px + env(safe-area-inset-bottom));
+  }
+  .detail.open{transform:translateY(0)}
+  .dclose{display:inline-block}
+  .detail .empty{display:none}
+}
+@media (prefers-reduced-motion:reduce){.detail{transition:none}}
+@media(max-width:640px){
+  body{font-size:13.5px}
+  .app{padding:16px 12px 40px}
+  header{gap:10px}
+  .brand{width:100%;justify-content:space-between}
+  .datebar{width:100%}
+  .datebar .dstr{flex:1;min-width:0;font-size:12px;padding:10px 8px}
+  .sync{width:100%;justify-content:space-between}
+  .sync .sstat{flex:1;text-align:right;margin-right:2px}
+  .palette{padding:12px;gap:7px}
+  .chip{padding:8px 12px}
+  .day{padding:12px 10px 14px}
+  .hour-row{grid-template-columns:40px 1fr;gap:7px}
+  .hour-label{font-size:10px}
+  .quarters{gap:4px}
+  .blk{height:32px;border-radius:6px} /* bigger touch targets */
+  .detail textarea{font-size:16px} /* stops iOS zoom-on-focus */
+  .addcat-form input[type=text]{font-size:16px;width:130px}
+  .stat-row .nm{width:74px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><h1>DAYGRID</h1><span>24H // 15-MIN BLOCKS</span></div>
+    <div class="datebar">
+      <button class="btn" id="prevDay" aria-label="Previous day">←</button>
+      <div class="dstr" id="dateStr"></div>
+      <button class="btn" id="nextDay" aria-label="Next day">→</button>
+      <button class="btn today" id="todayBtn">TODAY</button>
+    </div>
+    <div class="sync" id="syncBox">
+      <span class="sdot"></span>
+      <span class="sstat" id="syncStat">LOCAL ONLY</span>
+      <button class="btn" id="googleBtn">SIGN IN · GOOGLE</button>
+    </div>
+  </header>
+
+  <div class="card palette" id="palette"></div>
+
+  <div class="grid-wrap">
+    <div class="card day" id="dayGrid"></div>
+
+    <div class="side">
+      <div class="card detail" id="detailCard">
+        <div class="dhead">
+          <h2>Block details</h2>
+          <button class="btn dclose" id="detailClose" aria-label="Close details">✕</button>
+        </div>
+        <div id="detailBody"><div class="empty">Pick a category above, then click or drag across blocks to paint your day. Click any block to add notes here.</div></div>
+      </div>
+
+      <div class="card stats">
+        <h2>Day summary</h2>
+        <div id="statsBody"></div>
+        <div class="tracked"><span>Tracked</span><b id="trackedHrs">0.0h</b></div>
+      </div>
+
+      <div class="io">
+        <button class="btn saveday" id="saveDayBtn">SAVE DAY ↓</button>
+        <button class="btn" id="exportBtn">EXPORT ALL</button>
+        <button class="btn" id="importBtn">IMPORT</button>
+        <input type="file" id="importFile" accept=".json" style="display:none">
+      </div>
+      <div class="io-status" id="ioStatus"></div>
+    </div>
+  </div>
+
+  <footer>DATA LIVES IN THIS BROWSER · OPTIONAL GOOGLE DRIVE SYNC → /DAYGRID/DAYGRID-DATA.JSON</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================================================================
+   GOOGLE DRIVE SYNC — ONE-TIME SETUP
+   1. console.cloud.google.com → create a project (e.g. "daygrid")
+   2. APIs & Services → Library → enable "Google Drive API"
+   3. APIs & Services → OAuth consent screen → External → add
+      yourself as a test user (stays in Testing mode, that's fine)
+   4. Credentials → Create credentials → OAuth client ID →
+      Web application → add your hosted URL (e.g.
+      https://YOURNAME.github.io) under "Authorized JavaScript
+      origins" → copy the Client ID and paste it below.
+   NOTE: sign-in only works over http(s), not file:// — host the
+   file (GitHub Pages) or run:  python3 -m http.server
+   ================================================================ */
+const GOOGLE_CLIENT_ID = "PASTE_YOUR_CLIENT_ID_HERE.apps.googleusercontent.com";
+
+/* ---------- categories ---------- */
+const BASE_CATS = [
+  {id:"deep",  name:"Deep Work",  c:"#FF6B2C"},
+  {id:"client",name:"Client Work",c:"#3B9EFF"},
+  {id:"learn", name:"Learning",   c:"#8B5CF6"},
+  {id:"fit",   name:"Fitness",    c:"#2EE59D"},
+  {id:"meal",  name:"Meals",      c:"#FFD166"},
+  {id:"admin", name:"Admin",      c:"#2DD4BF"},
+  {id:"break", name:"Break",      c:"#F472B6"},
+  {id:"sleep", name:"Sleep",      c:"#64748B"},
+];
+const KEYC = "daygrid.cats.v1";
+let customCats = [];
+try{ customCats = JSON.parse(localStorage.getItem(KEYC)) || []; }catch(e){ customCats = []; }
+function saveCats(){
+  try{ localStorage.setItem(KEYC, JSON.stringify(customCats)); }catch(e){}
+  scheduleSync();
+}
+function allCats(){ return BASE_CATS.concat(customCats); }
+function getCat(id){
+  return allCats().find(c=>c.id===id) || {id:id, name:"(deleted)", c:"#55556A"};
+}
+const NICE_COLORS = ["#FF5C7A","#FF9A5C","#C4F55C","#5CF5D6","#5C9AFF","#B45CFF","#FF5CE1","#F5E35C"];
+
+/* ---------- storage (localStorage w/ in-memory fallback) ---------- */
+const KEY = "daygrid.v1";
+let mem = null;
+function loadAll(){
+  if(mem) return mem;
+  try{ mem = JSON.parse(localStorage.getItem(KEY)) || {}; }
+  catch(e){ mem = {}; }
+  return mem;
+}
+function saveAll(){
+  try{ localStorage.setItem(KEY, JSON.stringify(mem)); }catch(e){/* preview mode: memory only */}
+  scheduleSync();
+}
+
+/* ---------- state ---------- */
+let viewDate = todayStr();
+let tool = "deep";           // category id or "erase"
+let selectedBlk = null;      // 0..95
+let painting = false;
+let saveTimer = null;
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function dayData(){
+  const all = loadAll();
+  if(!all[viewDate]) all[viewDate] = {};
+  return all[viewDate];
+}
+function blkTime(i){
+  const h = Math.floor(i/4), m = (i%4)*15;
+  return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");
+}
+function blkRange(i){
+  const end = (i+1)%96;
+  return blkTime(i)+" – "+blkTime(end===0?0:end)+(end===0?" (+1d)":"");
+}
+function nowBlock(){
+  const d = new Date();
+  return d.getHours()*4 + Math.floor(d.getMinutes()/15);
+}
+
+/* ---------- palette ---------- */
+const paletteEl = document.getElementById("palette");
+let addingCat = false;
+function esc(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+function renderPalette(){
+  paletteEl.innerHTML = "";
+  allCats().forEach(cat=>{
+    const b = document.createElement("button");
+    b.className = "chip"+(tool===cat.id?" active":"");
+    b.style.setProperty("--c",cat.c);
+    b.innerHTML = '<span class="dot"></span>'+esc(cat.name);
+    b.onclick = ()=>{ tool = cat.id; renderPalette(); };
+    const isCustom = customCats.some(c=>c.id===cat.id);
+    if(isCustom){
+      const x = document.createElement("span");
+      x.className = "x"; x.textContent = "×"; x.title = "Delete category";
+      x.onclick = (e)=>{
+        e.stopPropagation();
+        if(!confirm('Delete "'+cat.name+'"? Blocks already painted with it will show as grey "(deleted)".')) return;
+        customCats = customCats.filter(c=>c.id!==cat.id);
+        saveCats();
+        if(tool===cat.id) tool = "deep";
+        renderPalette(); refreshAllBlocks(); renderStats(); renderDetail();
+      };
+      b.appendChild(x);
+    }
+    paletteEl.appendChild(b);
+  });
+  const er = document.createElement("button");
+  er.className = "chip eraser"+(tool==="erase"?" active":"");
+  er.style.setProperty("--c","#8A8A9B");
+  er.innerHTML = '<span class="dot"></span>Eraser';
+  er.onclick = ()=>{ tool = "erase"; renderPalette(); };
+  paletteEl.appendChild(er);
+
+  if(addingCat){
+    const form = document.createElement("div");
+    form.className = "addcat-form";
+    const nameIn = document.createElement("input");
+    nameIn.type = "text"; nameIn.placeholder = "Category name"; nameIn.maxLength = 24;
+    const colorIn = document.createElement("input");
+    colorIn.type = "color";
+    colorIn.value = NICE_COLORS[customCats.length % NICE_COLORS.length];
+    const ok = document.createElement("button");
+    ok.className = "btn"; ok.textContent = "ADD";
+    const cancel = document.createElement("button");
+    cancel.className = "btn"; cancel.textContent = "✕";
+    function commit(){
+      const nm = nameIn.value.trim();
+      if(!nm) { nameIn.focus(); return; }
+      const id = "c_"+Date.now().toString(36);
+      customCats.push({id:id, name:nm, c:colorIn.value});
+      saveCats();
+      tool = id; addingCat = false;
+      renderPalette();
+    }
+    ok.onclick = commit;
+    nameIn.addEventListener("keydown",(e)=>{ if(e.key==="Enter") commit(); if(e.key==="Escape"){ addingCat=false; renderPalette(); } });
+    cancel.onclick = ()=>{ addingCat = false; renderPalette(); };
+    form.append(nameIn, colorIn, ok, cancel);
+    paletteEl.appendChild(form);
+    setTimeout(()=>nameIn.focus(), 50);
+  }else{
+    const add = document.createElement("button");
+    add.className = "chip addcat-btn";
+    add.textContent = "+ New category";
+    add.onclick = ()=>{ addingCat = true; renderPalette(); };
+    paletteEl.appendChild(add);
+  }
+
+  const hint = document.createElement("span");
+  hint.className = "hint";
+  hint.textContent = "CLICK OR DRAG TO PAINT";
+  paletteEl.appendChild(hint);
+}
+
+/* ---------- day grid ---------- */
+const dayEl = document.getElementById("dayGrid");
+const blkEls = [];
+function buildGrid(){
+  dayEl.innerHTML = "";
+  blkEls.length = 0;
+  for(let h=0; h<24; h++){
+    const row = document.createElement("div");
+    row.className = "hour-row";
+    row.dataset.hour = h;
+    const lab = document.createElement("div");
+    lab.className = "hour-label";
+    lab.textContent = String(h).padStart(2,"0")+":00";
+    const q = document.createElement("div");
+    q.className = "quarters";
+    for(let j=0;j<4;j++){
+      const i = h*4+j;
+      const blk = document.createElement("div");
+      blk.className = "blk";
+      blk.dataset.i = i;
+      blk.title = blkRange(i);
+      blk.addEventListener("mousedown",(e)=>{ e.preventDefault(); painting = true; paintBlock(i); selectBlock(i); });
+      blk.addEventListener("mouseenter",()=>{ if(painting) paintBlock(i); });
+      q.appendChild(blk);
+      blkEls.push(blk);
+    }
+    row.appendChild(lab); row.appendChild(q);
+    dayEl.appendChild(row);
+  }
+  document.addEventListener("mouseup",()=>{ painting = false; });
+
+  /* --- touch: tap = paint one block; long-press then drag = paint range --- */
+  let lpTimer = null, touchPaint = false, startX = 0, startY = 0, startBlk = null;
+  function blockFromTouch(t){
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    return el && el.classList && el.classList.contains("blk") ? Number(el.dataset.i) : null;
+  }
+  dayEl.addEventListener("touchstart",(e)=>{
+    const i = blockFromTouch(e.touches[0]);
+    if(i===null) return;
+    startBlk = i;
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    touchPaint = false;
+    lpTimer = setTimeout(()=>{
+      touchPaint = true;
+      if(navigator.vibrate) navigator.vibrate(12);
+      paintBlock(i); selectBlock(i);
+    }, 300);
+  },{passive:true});
+  dayEl.addEventListener("touchmove",(e)=>{
+    const t = e.touches[0];
+    if(touchPaint){
+      e.preventDefault(); // lock scroll while range-painting
+      const i = blockFromTouch(t);
+      if(i!==null) paintBlock(i);
+    }else if(Math.abs(t.clientX-startX)>8 || Math.abs(t.clientY-startY)>8){
+      clearTimeout(lpTimer); // it's a scroll, not a long-press
+      startBlk = null;
+    }
+  },{passive:false});
+  dayEl.addEventListener("touchend",(e)=>{
+    clearTimeout(lpTimer);
+    if(touchPaint){
+      touchPaint = false;
+      e.preventDefault(); // suppress the simulated click that would follow
+    }else if(startBlk!==null){
+      e.preventDefault();
+      paintBlock(startBlk); selectBlock(startBlk); // simple tap
+    }
+    startBlk = null;
+  });
+  dayEl.addEventListener("touchcancel",()=>{ clearTimeout(lpTimer); touchPaint = false; startBlk = null; });
+}
+function paintBlock(i){
+  const d = dayData();
+  if(tool==="erase"){
+    delete d[i];
+  }else{
+    d[i] = d[i] || {};
+    d[i].cat = tool;
+  }
+  saveAll();
+  refreshBlock(i);
+  renderStats();
+  if(selectedBlk===i) renderDetail();
+}
+function refreshBlock(i){
+  const el = blkEls[i];
+  const d = dayData()[i];
+  el.classList.toggle("filled", !!(d && d.cat));
+  if(d && d.cat){ el.style.setProperty("--c", getCat(d.cat).c); }
+  else{ el.style.removeProperty("--c"); }
+  const hasNote = !!(d && d.note && d.note.trim());
+  let dot = el.querySelector(".note-dot");
+  if(hasNote && !dot){ dot = document.createElement("span"); dot.className = "note-dot"; el.appendChild(dot); }
+  if(!hasNote && dot){ dot.remove(); }
+  el.classList.toggle("selected", selectedBlk===i);
+}
+function refreshAllBlocks(){
+  for(let i=0;i<96;i++) refreshBlock(i);
+  markNow();
+}
+function markNow(){
+  const isToday = viewDate===todayStr();
+  const nb = nowBlock();
+  blkEls.forEach((el,i)=> el.classList.toggle("now", isToday && i===nb));
+  document.querySelectorAll(".hour-row").forEach(r=>{
+    r.classList.toggle("now-hour", isToday && Number(r.dataset.hour)===Math.floor(nb/4));
+  });
+}
+
+/* ---------- detail panel ---------- */
+const detailBody = document.getElementById("detailBody");
+const detailCard = document.getElementById("detailCard");
+const isMobile = ()=>window.matchMedia("(max-width:920px)").matches;
+function closeDetail(){
+  const prev = selectedBlk;
+  selectedBlk = null;
+  detailCard.classList.remove("open");
+  if(prev!==null) refreshBlock(prev);
+  renderDetail();
+}
+document.getElementById("detailClose").onclick = closeDetail;
+function selectBlock(i){
+  const prev = selectedBlk;
+  selectedBlk = i;
+  if(prev!==null) refreshBlock(prev);
+  refreshBlock(i);
+  renderDetail();
+  if(isMobile()) detailCard.classList.add("open");
+}
+function renderDetail(){
+  if(selectedBlk===null){
+    detailBody.innerHTML = '<div class="empty">Pick a category above, then click or drag across blocks to paint your day. Click any block to add notes here.</div>';
+    return;
+  }
+  const i = selectedBlk;
+  const d = dayData()[i] || {};
+  const cat = d.cat ? getCat(d.cat) : null;
+  detailBody.innerHTML =
+    '<div class="time">'+blkRange(i)+'</div>'+
+    (cat
+      ? '<div class="cat-tag" style="--c:'+cat.c+'"><span class="dot"></span>'+esc(cat.name)+'</div>'
+      : '<div class="cat-tag" style="--c:#55556A"><span class="dot"></span>Unassigned</div>')+
+    '<textarea id="noteBox" placeholder="What happened in this block? Tasks, wins, distractions…"></textarea>'+
+    '<div class="savemark" id="saveMark">SAVED ✓</div>';
+  const box = document.getElementById("noteBox");
+  box.value = d.note || "";
+  box.addEventListener("input", ()=>{
+    const dd = dayData();
+    dd[i] = dd[i] || {};
+    dd[i].note = box.value;
+    if(!dd[i].cat && !box.value.trim()) delete dd[i];
+    saveAll();
+    refreshBlock(i);
+    clearTimeout(saveTimer);
+    const mark = document.getElementById("saveMark");
+    mark.classList.add("show");
+    saveTimer = setTimeout(()=>mark.classList.remove("show"), 1200);
+  });
+}
+
+/* ---------- stats ---------- */
+const statsBody = document.getElementById("statsBody");
+function renderStats(){
+  const d = dayData();
+  const counts = {};
+  let total = 0;
+  Object.values(d).forEach(b=>{
+    if(b && b.cat){ counts[b.cat]=(counts[b.cat]||0)+1; total++; }
+  });
+  statsBody.innerHTML = "";
+  const seen = new Set();
+  const list = allCats().slice();
+  Object.keys(counts).forEach(id=>{
+    if(!list.some(c=>c.id===id)) list.push(getCat(id)); // deleted cats still counted
+  });
+  list.forEach(cat=>{
+    if(seen.has(cat.id)) return; seen.add(cat.id);
+    const n = counts[cat.id]||0;
+    if(n===0) return;
+    const hrs = (n*0.25).toFixed(2).replace(/\.?0+$/,"");
+    const row = document.createElement("div");
+    row.className = "stat-row";
+    row.style.setProperty("--c",cat.c);
+    row.innerHTML = '<span class="dot"></span><span class="nm">'+esc(cat.name)+'</span>'+
+      '<span class="bar"><i style="width:'+((n/96)*100)+'%"></i></span>'+
+      '<span class="hrs">'+hrs+'h</span>';
+    statsBody.appendChild(row);
+  });
+  if(total===0){
+    statsBody.innerHTML = '<div class="empty" style="color:var(--faint);font-size:12.5px">Nothing tracked yet for this day.</div>';
+  }
+  document.getElementById("trackedHrs").textContent = (total*0.25).toFixed(1)+"h";
+}
+
+/* ---------- date nav ---------- */
+const dateStrEl = document.getElementById("dateStr");
+function renderDate(){
+  const [y,m,dd] = viewDate.split("-").map(Number);
+  const d = new Date(y,m-1,dd);
+  const opts = {weekday:"short",day:"2-digit",month:"short",year:"numeric"};
+  dateStrEl.textContent = d.toLocaleDateString("en-GB",opts).toUpperCase();
+}
+function shiftDay(n){
+  const [y,m,dd] = viewDate.split("-").map(Number);
+  const d = new Date(y,m-1,dd+n);
+  viewDate = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  selectedBlk = null;
+  detailCard.classList.remove("open");
+  renderDate(); refreshAllBlocks(); renderStats(); renderDetail();
+}
+document.getElementById("prevDay").onclick = ()=>shiftDay(-1);
+document.getElementById("nextDay").onclick = ()=>shiftDay(1);
+document.getElementById("todayBtn").onclick = ()=>{ viewDate = todayStr(); selectedBlk=null; detailCard.classList.remove("open"); renderDate(); refreshAllBlocks(); renderStats(); renderDetail(); };
+
+/* ---------- export / import ---------- */
+document.getElementById("exportBtn").onclick = ()=>{
+  const payload = { days: loadAll(), cats: customCats };
+  const blob = new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "daygrid-backup-"+todayStr()+".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+document.getElementById("importBtn").onclick = ()=>document.getElementById("importFile").click();
+document.getElementById("importFile").addEventListener("change",(e)=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const data = JSON.parse(r.result);
+      if(data && data.days){ // new bundle format
+        mem = Object.assign(loadAll(), data.days);
+        (data.cats||[]).forEach(c=>{
+          if(c && c.id && !customCats.some(x=>x.id===c.id)) customCats.push(c);
+        });
+        saveCats();
+      }else{ // old flat format (days only)
+        mem = Object.assign(loadAll(), data);
+      }
+      saveAll();
+      renderPalette(); refreshAllBlocks(); renderStats(); renderDetail();
+    }catch(err){ alert("Couldn't read that file — it needs to be a DAYGRID JSON export."); }
+  };
+  r.readAsText(f);
+  e.target.value = "";
+});
+
+/* ---------- google drive sync ---------- */
+const syncBox = document.getElementById("syncBox");
+const syncStat = document.getElementById("syncStat");
+const googleBtn = document.getElementById("googleBtn");
+const SCOPES = "https://www.googleapis.com/auth/drive.file openid email";
+const GRANTED_KEY = "daygrid.google.granted";
+let tokenClient = null, accessToken = null, driveFileId = null;
+let syncTimer2 = null, uploading = false, dirty = false;
+
+function scheduleSync(){
+  if(!accessToken) return;
+  dirty = true;
+  clearTimeout(syncTimer2);
+  syncTimer2 = setTimeout(uploadToDrive, 2500);
+}
+function setSync(state, text){
+  syncBox.className = "sync "+state;
+  syncStat.textContent = text;
+}
+function gapi(path, opts){
+  opts = opts || {};
+  opts.headers = Object.assign({Authorization:"Bearer "+accessToken}, opts.headers||{});
+  return fetch("https://www.googleapis.com"+path, opts).then(r=>{
+    if(r.status===401){ accessToken=null; setSync("err","SESSION EXPIRED — SIGN IN"); googleBtn.textContent="SIGN IN · GOOGLE"; throw new Error("401"); }
+    if(!r.ok) throw new Error("Drive API "+r.status);
+    return r;
+  });
+}
+async function findOrCreateFile(){
+  // folder
+  let q = encodeURIComponent("name='DAYGRID' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+  let res = await (await gapi("/drive/v3/files?q="+q+"&fields=files(id)")).json();
+  let folderId;
+  if(res.files && res.files.length){ folderId = res.files[0].id; }
+  else{
+    const f = await (await gapi("/drive/v3/files",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name:"DAYGRID",mimeType:"application/vnd.google-apps.folder"})})).json();
+    folderId = f.id;
+  }
+  // data file
+  q = encodeURIComponent("name='daygrid-data.json' and '"+folderId+"' in parents and trashed=false");
+  res = await (await gapi("/drive/v3/files?q="+q+"&fields=files(id)")).json();
+  if(res.files && res.files.length){ return res.files[0].id; }
+  const meta = {name:"daygrid-data.json", parents:[folderId], mimeType:"application/json"};
+  const boundary = "daygrid"+Date.now();
+  const body = "--"+boundary+"\r\nContent-Type: application/json\r\n\r\n"+JSON.stringify(meta)+
+    "\r\n--"+boundary+"\r\nContent-Type: application/json\r\n\r\n"+JSON.stringify({days:{},cats:[]})+
+    "\r\n--"+boundary+"--";
+  const f = await (await gapi("/upload/drive/v3/files?uploadType=multipart",{method:"POST",
+    headers:{"Content-Type":"multipart/related; boundary="+boundary}, body:body})).json();
+  return f.id;
+}
+function mergeRemote(remote){
+  if(!remote) return;
+  const all = loadAll();
+  const rdays = remote.days || {};
+  Object.keys(rdays).forEach(date=>{
+    if(!all[date]){ all[date] = rdays[date]; return; }
+    Object.keys(rdays[date]).forEach(i=>{
+      if(!all[date][i]) all[date][i] = rdays[date][i]; // local wins on conflict
+    });
+  });
+  (remote.cats||[]).forEach(c=>{
+    if(c && c.id && !customCats.some(x=>x.id===c.id)) customCats.push(c);
+  });
+  try{ localStorage.setItem(KEY, JSON.stringify(all)); localStorage.setItem(KEYC, JSON.stringify(customCats)); }catch(e){}
+}
+async function downloadAndMerge(){
+  const res = await gapi("/drive/v3/files/"+driveFileId+"?alt=media");
+  try{ mergeRemote(await res.json()); }catch(e){}
+  renderPalette(); refreshAllBlocks(); renderStats(); renderDetail();
+}
+async function uploadToDrive(){
+  if(!accessToken || !driveFileId || uploading) return;
+  uploading = true; dirty = false;
+  setSync("busy","SYNCING…");
+  try{
+    await gapi("/upload/drive/v3/files/"+driveFileId+"?uploadType=media",{
+      method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({days:loadAll(), cats:customCats, savedAt:new Date().toISOString()})
+    });
+    setSync("on","SYNCED · "+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}));
+  }catch(e){
+    if(e.message!=="401") setSync("err","SYNC FAILED — RETRYING");
+    dirty = true;
+  }
+  uploading = false;
+  if(dirty) scheduleSync();
+}
+async function onToken(resp){
+  if(resp.error){ setSync("err","SIGN-IN CANCELLED"); return; }
+  accessToken = resp.access_token;
+  try{ localStorage.setItem(GRANTED_KEY,"1"); }catch(e){}
+  googleBtn.textContent = "SIGN OUT";
+  setSync("busy","CONNECTING DRIVE…");
+  try{
+    driveFileId = await findOrCreateFile();
+    await downloadAndMerge();
+    await uploadToDrive();
+    // show account email if available
+    try{
+      const u = await (await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+accessToken}})).json();
+      if(u.email) setSync("on", u.email.toUpperCase());
+    }catch(e){}
+  }catch(e){
+    if(e.message!=="401") setSync("err","DRIVE ERROR — CHECK SETUP");
+  }
+  // access tokens expire after ~1h: silently refresh
+  setTimeout(()=>{ if(tokenClient) tokenClient.requestAccessToken({prompt:""}); }, 50*60*1000);
+}
+function initGoogle(){
+  if(location.protocol==="file:"){
+    setSync("", "SIGN-IN NEEDS HTTP(S)");
+    googleBtn.onclick = ()=>alert("Google sign-in can't run from a double-clicked local file.\n\nEither host this file (GitHub Pages is free) or serve it locally:\n\n  cd <folder with this file>\n  python3 -m http.server 8000\n\nthen open http://localhost:8000/daygrid.html");
+    return;
+  }
+  if(GOOGLE_CLIENT_ID.indexOf("PASTE_YOUR")===0){
+    setSync("", "LOCAL ONLY");
+    googleBtn.onclick = ()=>alert("Drive sync needs a (free) Google OAuth Client ID.\n\nOpen this file in a text editor and follow the setup steps at the top of the <script> section, then paste your Client ID into GOOGLE_CLIENT_ID.");
+    return;
+  }
+  const s = document.createElement("script");
+  s.src = "https://accounts.google.com/gsi/client";
+  s.onload = ()=>{
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID, scope: SCOPES, callback: onToken
+    });
+    googleBtn.onclick = ()=>{
+      if(accessToken){ // sign out
+        google.accounts.oauth2.revoke(accessToken, ()=>{});
+        accessToken = null; driveFileId = null;
+        try{ localStorage.removeItem(GRANTED_KEY); }catch(e){}
+        googleBtn.textContent = "SIGN IN · GOOGLE";
+        setSync("", "LOCAL ONLY");
+        return;
+      }
+      tokenClient.requestAccessToken({prompt:""});
+    };
+    // auto-reconnect if previously granted
+    let granted = false;
+    try{ granted = localStorage.getItem(GRANTED_KEY)==="1"; }catch(e){}
+    if(granted){ setSync("busy","RECONNECTING…"); tokenClient.requestAccessToken({prompt:""}); }
+  };
+  s.onerror = ()=>setSync("err","GOOGLE SCRIPT BLOCKED");
+  document.head.appendChild(s);
+}
+// flush pending changes when tab is hidden/closed
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="hidden" && dirty){ clearTimeout(syncTimer2); uploadToDrive(); }
+});
+
+/* ---------- save day to local folder ---------- */
+const ioStatus = document.getElementById("ioStatus");
+let statusTimer = null;
+function ioFlash(html, sticky){
+  ioStatus.innerHTML = html;
+  clearTimeout(statusTimer);
+  if(!sticky) statusTimer = setTimeout(renderFolderStatus, 4000);
+}
+
+/* tiny IndexedDB store for the folder handle (localStorage can't hold it) */
+function idb(){
+  return new Promise((res,rej)=>{
+    const r = indexedDB.open("daygrid-fs",1);
+    r.onupgradeneeded = ()=>r.result.createObjectStore("kv");
+    r.onsuccess = ()=>res(r.result);
+    r.onerror = ()=>rej(r.error);
+  });
+}
+async function idbGet(k){
+  try{
+    const db = await idb();
+    return await new Promise((res)=>{
+      const t = db.transaction("kv").objectStore("kv").get(k);
+      t.onsuccess = ()=>res(t.result||null);
+      t.onerror = ()=>res(null);
+    });
+  }catch(e){ return null; }
+}
+async function idbSet(k,v){
+  try{
+    const db = await idb();
+    await new Promise((res)=>{
+      const t = db.transaction("kv","readwrite").objectStore("kv").put(v,k);
+      t.onsuccess = res; t.onerror = res;
+    });
+  }catch(e){}
+}
+
+const FS_OK = typeof window.showDirectoryPicker === "function";
+async function getFolder(forcePick){
+  if(!FS_OK) return null;
+  let h = forcePick ? null : await idbGet("dir");
+  if(h){
+    let p = await h.queryPermission({mode:"readwrite"});
+    if(p!=="granted") p = await h.requestPermission({mode:"readwrite"});
+    if(p!=="granted") h = null;
+  }
+  if(!h){
+    h = await window.showDirectoryPicker({mode:"readwrite"});
+    await idbSet("dir", h);
+  }
+  return h;
+}
+async function writeToFolder(dir, name, text){
+  const fh = await dir.getFileHandle(name, {create:true});
+  const w = await fh.createWritable();
+  await w.write(text);
+  await w.close();
+}
+function downloadText(name, text, type){
+  const blob = new Blob([text],{type:type||"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* group consecutive same-category blocks into runs for the readable log */
+function dayRuns(d){
+  const runs = [];
+  let cur = null;
+  for(let i=0;i<96;i++){
+    const cat = d[i] && d[i].cat ? d[i].cat : null;
+    if(cur && cur.cat===cat && cat!==null){ cur.end = i; }
+    else{
+      if(cur && cur.cat) runs.push(cur);
+      cur = cat ? {cat:cat, start:i, end:i} : null;
+    }
+  }
+  if(cur && cur.cat) runs.push(cur);
+  return runs;
+}
+function buildDayLog(date){
+  const all = loadAll();
+  const d = all[date] || {};
+  const [y,m,dd] = date.split("-").map(Number);
+  const nice = new Date(y,m-1,dd).toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
+  const runs = dayRuns(d);
+  const counts = {};
+  let total = 0;
+  Object.values(d).forEach(b=>{ if(b && b.cat){ counts[b.cat]=(counts[b.cat]||0)+1; total++; } });
+
+  let md = "# DAYGRID — "+nice+"\n\n";
+  md += "**Tracked:** "+(total*0.25).toFixed(1)+"h of 24h\n\n";
+  md += "## Summary\n\n";
+  if(total===0) md += "_Nothing tracked._\n";
+  Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).forEach(id=>{
+    md += "- "+getCat(id).name+" — "+(counts[id]*0.25).toFixed(2).replace(/\.?0+$/,"")+"h\n";
+  });
+  md += "\n## Timeline\n\n";
+  if(runs.length===0) md += "_Empty day._\n";
+  runs.forEach(r=>{
+    const endT = blkTime((r.end+1)%96)+((r.end+1)===96?" (24:00)":"");
+    md += "- **"+blkTime(r.start)+" – "+endT+"** · "+getCat(r.cat).name+"\n";
+    for(let i=r.start;i<=r.end;i++){
+      if(d[i] && d[i].note && d[i].note.trim()){
+        md += "  - "+blkTime(i)+": "+d[i].note.trim().replace(/\n/g," / ")+"\n";
+      }
+    }
+  });
+  // notes on unassigned blocks still deserve to be in the log
+  const orphans = Object.keys(d).filter(i=>d[i] && !d[i].cat && d[i].note && d[i].note.trim());
+  if(orphans.length){
+    md += "\n## Other notes\n\n";
+    orphans.sort((a,b)=>a-b).forEach(i=>{ md += "- "+blkTime(Number(i))+": "+d[i].note.trim().replace(/\n/g," / ")+"\n"; });
+  }
+  md += "\n---\n_Generated by DAYGRID · "+new Date().toLocaleString()+"_\n";
+
+  const json = JSON.stringify({days:{[date]:d}, cats:customCats, savedAt:new Date().toISOString()}, null, 2);
+  return {md:md, json:json, base:"daygrid-"+date};
+}
+
+async function saveDay(forcePick){
+  const log = buildDayLog(viewDate);
+  if(FS_OK){
+    try{
+      const dir = await getFolder(forcePick);
+      if(dir){
+        await writeToFolder(dir, log.base+".md", log.md);
+        await writeToFolder(dir, log.base+".json", log.json);
+        ioFlash("<b>SAVED ✓</b> "+log.base+".md + .json → /"+dir.name);
+        return;
+      }
+    }catch(e){
+      if(e && e.name==="AbortError") return; // user cancelled the picker
+      // fall through to downloads on any other failure
+    }
+  }
+  downloadText(log.base+".md", log.md, "text/markdown");
+  setTimeout(()=>downloadText(log.base+".json", log.json, "application/json"), 350);
+  ioFlash("<b>DOWNLOADED ✓</b> "+log.base+".md + .json → Downloads");
+}
+async function renderFolderStatus(){
+  if(!FS_OK){ ioStatus.innerHTML = "SAVE DAY downloads 2 files (this browser can't write folders directly)"; return; }
+  const h = await idbGet("dir");
+  ioStatus.innerHTML = h
+    ? 'Saving to <b>/'+h.name+'</b> · <a id="changeDir">change folder</a>'
+    : 'First save will ask you to pick a folder';
+  const a = document.getElementById("changeDir");
+  if(a) a.onclick = ()=>saveDay(true);
+}
+document.getElementById("saveDayBtn").onclick = ()=>saveDay(false);
+
+/* ---------- init ---------- */
+renderPalette();
+buildGrid();
+renderDate();
+refreshAllBlocks();
+renderStats();
+initGoogle();
+renderFolderStatus();
+setInterval(markNow, 30000);
+
+/* scroll current hour into view on load (today only) */
+if(viewDate===todayStr()){
+  const nb = blkEls[nowBlock()];
+  if(nb) setTimeout(()=>nb.scrollIntoView({block:"center",behavior:"smooth"}), 300);
+}
+})();
+</script>
+</body>
+</html>
