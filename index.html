@@ -360,7 +360,19 @@ function loadAll(){
 }
 function saveAll(){
   try{ localStorage.setItem(KEY, JSON.stringify(mem)); }catch(e){/* preview mode: memory only */}
+  if(typeof viewDate!=="undefined") markUnarchived(viewDate); // edited a past day → re-archive its log
   scheduleSync();
+}
+/* which past days already have a log file in Drive */
+const KEYA = "daygrid.archived.v1";
+let archived = [];
+try{ archived = JSON.parse(localStorage.getItem(KEYA)) || []; }catch(e){ archived = []; }
+function saveArchived(){ try{ localStorage.setItem(KEYA, JSON.stringify(archived)); }catch(e){} }
+function markUnarchived(date){
+  if(date < todayStr() && archived.indexOf(date)!==-1){
+    archived = archived.filter(d=>d!==date);
+    saveArchived();
+  }
 }
 
 /* ---------- state ---------- */
@@ -725,7 +737,7 @@ const syncStat = document.getElementById("syncStat");
 const googleBtn = document.getElementById("googleBtn");
 const SCOPES = "https://www.googleapis.com/auth/drive.file openid email";
 const GRANTED_KEY = "daygrid.google.granted";
-let tokenClient = null, accessToken = null, driveFileId = null;
+let tokenClient = null, accessToken = null, driveFileId = null, driveFolderId = null;
 let syncTimer2 = null, uploading = false, dirty = false;
 
 function scheduleSync(){
@@ -758,6 +770,7 @@ async function findOrCreateFile(){
       body:JSON.stringify({name:"DAYGRID",mimeType:"application/vnd.google-apps.folder"})})).json();
     folderId = f.id;
   }
+  driveFolderId = folderId;
   // data file
   q = encodeURIComponent("name='daygrid-data.json' and '"+folderId+"' in parents and trashed=false");
   res = await (await gapi("/drive/v3/files?q="+q+"&fields=files(id)")).json();
@@ -784,6 +797,8 @@ function mergeRemote(remote){
   (remote.cats||[]).forEach(c=>{
     if(c && c.id && !customCats.some(x=>x.id===c.id)) customCats.push(c);
   });
+  (remote.archived||[]).forEach(dt=>{ if(archived.indexOf(dt)===-1) archived.push(dt); });
+  saveArchived();
   try{ localStorage.setItem(KEY, JSON.stringify(all)); localStorage.setItem(KEYC, JSON.stringify(customCats)); }catch(e){}
 }
 async function downloadAndMerge(){
@@ -798,7 +813,7 @@ async function uploadToDrive(){
   try{
     await gapi("/upload/drive/v3/files/"+driveFileId+"?uploadType=media",{
       method:"PATCH", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({days:loadAll(), cats:customCats, savedAt:new Date().toISOString()})
+      body:JSON.stringify({days:loadAll(), cats:customCats, archived:archived, savedAt:new Date().toISOString()})
     });
     setSync("on","SYNCED · "+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}));
   }catch(e){
@@ -818,6 +833,7 @@ async function onToken(resp){
     driveFileId = await findOrCreateFile();
     await downloadAndMerge();
     await uploadToDrive();
+    archiveOldDays(); // write .md logs for any past days not yet archived
     // show account email if available
     try{
       const u = await (await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+accessToken}})).json();
@@ -1024,6 +1040,62 @@ async function renderFolderStatus(){
 }
 document.getElementById("saveDayBtn").onclick = ()=>saveDay(false);
 
+/* ---------- auto-archive daily logs to Drive/DAYGRID/Logs ---------- */
+let archiving = false;
+async function getLogsFolder(){
+  let q = encodeURIComponent("name='Logs' and '"+driveFolderId+"' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false");
+  const res = await (await gapi("/drive/v3/files?q="+q+"&fields=files(id)")).json();
+  if(res.files && res.files.length) return res.files[0].id;
+  const f = await (await gapi("/drive/v3/files",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name:"Logs",mimeType:"application/vnd.google-apps.folder",parents:[driveFolderId]})})).json();
+  return f.id;
+}
+async function archiveOldDays(){
+  if(!accessToken || !driveFolderId || archiving) return;
+  const all = loadAll();
+  const today = todayStr();
+  const pending = Object.keys(all)
+    .filter(dt=> dt < today && Object.keys(all[dt]||{}).length>0 && archived.indexOf(dt)===-1)
+    .sort();
+  if(!pending.length) return;
+  archiving = true;
+  try{
+    const lid = await getLogsFolder();
+    for(const date of pending){
+      const log = buildDayLog(date);
+      const fname = log.base+".md";
+      const q = encodeURIComponent("name='"+fname+"' and '"+lid+"' in parents and trashed=false");
+      const res = await (await gapi("/drive/v3/files?q="+q+"&fields=files(id)")).json();
+      if(res.files && res.files.length){
+        await gapi("/upload/drive/v3/files/"+res.files[0].id+"?uploadType=media",{
+          method:"PATCH", headers:{"Content-Type":"text/markdown"}, body:log.md});
+      }else{
+        const boundary = "dg"+Date.now();
+        const body = "--"+boundary+"\r\nContent-Type: application/json\r\n\r\n"+
+          JSON.stringify({name:fname,parents:[lid],mimeType:"text/markdown"})+
+          "\r\n--"+boundary+"\r\nContent-Type: text/markdown\r\n\r\n"+log.md+"\r\n--"+boundary+"--";
+        await gapi("/upload/drive/v3/files?uploadType=multipart",{method:"POST",
+          headers:{"Content-Type":"multipart/related; boundary="+boundary}, body:body});
+      }
+      if(archived.indexOf(date)===-1) archived.push(date);
+      saveArchived();
+    }
+    ioFlash("<b>AUTO-LOG ✓</b> "+pending.length+" day"+(pending.length>1?"s":"")+" → Drive/DAYGRID/Logs");
+    scheduleSync(); // push updated archived list to the main file
+  }catch(e){ /* will retry on next open/rollover */ }
+  archiving = false;
+}
+function scheduleMidnight(){
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 0, 0, 15);
+  setTimeout(()=>{
+    markNow();               // move the live indicator to the new day
+    if(viewDate!==todayStr()){ /* user was viewing today; date label stays where they are */ }
+    archiveOldDays();        // yesterday just became archivable
+    scheduleMidnight();      // arm for the next night
+  }, next - now);
+}
+
 /* ---------- init ---------- */
 renderPalette();
 buildGrid();
@@ -1032,6 +1104,7 @@ refreshAllBlocks();
 renderStats();
 initGoogle();
 renderFolderStatus();
+scheduleMidnight();
 setInterval(markNow, 30000);
 
 /* scroll current hour into view on load (today only) */
