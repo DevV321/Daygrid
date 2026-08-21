@@ -476,7 +476,7 @@ function renderPalette(){
 
   const hint = document.createElement("span");
   hint.className = "hint";
-  hint.textContent = "CLICK OR DRAG TO PAINT";
+  hint.textContent = "CLICK/DRAG = PAINT · 2×CLICK = ERASE";
   paletteEl.appendChild(hint);
 }
 
@@ -503,6 +503,7 @@ function buildGrid(){
       blk.title = blkRange(i);
       blk.addEventListener("mousedown",(e)=>{ e.preventDefault(); painting = true; paintBlock(i); selectBlock(i); });
       blk.addEventListener("mouseenter",()=>{ if(painting) paintBlock(i); });
+      blk.addEventListener("dblclick",(e)=>{ e.preventDefault(); eraseBlock(i); selectBlock(i); });
       q.appendChild(blk);
       blkEls.push(blk);
     }
@@ -513,6 +514,7 @@ function buildGrid(){
 
   /* --- touch: tap = paint one block; long-press then drag = paint range --- */
   let lpTimer = null, touchPaint = false, startX = 0, startY = 0, startBlk = null;
+  let lastTapTime = 0, lastTapBlk = null;
   function blockFromTouch(t){
     const el = document.elementFromPoint(t.clientX, t.clientY);
     return el && el.classList && el.classList.contains("blk") ? Number(el.dataset.i) : null;
@@ -547,7 +549,15 @@ function buildGrid(){
       e.preventDefault(); // suppress the simulated click that would follow
     }else if(startBlk!==null){
       e.preventDefault();
-      paintBlock(startBlk); selectBlock(startBlk); // simple tap
+      const now = Date.now();
+      if(startBlk===lastTapBlk && now-lastTapTime<320){ // double-tap = erase
+        eraseBlock(startBlk); selectBlock(startBlk);
+        lastTapTime = 0; lastTapBlk = null;
+        if(navigator.vibrate) navigator.vibrate([8,40,8]);
+      }else{ // single tap = paint
+        paintBlock(startBlk); selectBlock(startBlk);
+        lastTapTime = now; lastTapBlk = startBlk;
+      }
     }
     startBlk = null;
   });
@@ -561,6 +571,14 @@ function paintBlock(i){
     d[i] = d[i] || {};
     d[i].cat = tool;
   }
+  saveAll();
+  refreshBlock(i);
+  renderStats();
+  if(selectedBlk===i) renderDetail();
+}
+function eraseBlock(i){
+  const d = dayData();
+  delete d[i]; // clears category AND note, same as the eraser tool
   saveAll();
   refreshBlock(i);
   renderStats();
